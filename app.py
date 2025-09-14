@@ -1,79 +1,67 @@
+# phishing_app.py
 import streamlit as st
+import pandas as pd
 import numpy as np
 import joblib
 
-# Load saved model and scaler
-model = joblib.load("best_phishing_model.pkl")
-scaler = joblib.load("best_scaler.pkl")
+# -----------------------------
+# Load model and scaler
+# -----------------------------
+best_model = joblib.load("best_phishing_model.pkl")
+scaler_model = joblib.load("best_scaler.pkl")
 
-# Top 15 Features (Model-Based)
-top_features = [
-    'SSLfinal_State', 'URL_of_Anchor', 'web_traffic', 'Prefix_Suffix',
-    'having_Sub_Domain', 'age_of_domain', 'Page_Rank', 'Links_in_tags',
-    'Domain_registeration_length', 'Request_URL', 'Links_pointing_to_page',
+# List of features used in the model (top 15 model-based features)
+top_features_model_based = [
+    'SSLfinal_State', 'URL_of_Anchor', 'web_traffic', 'Prefix_Suffix', 
+    'having_Sub_Domain', 'age_of_domain', 'Page_Rank', 'Links_in_tags', 
+    'Domain_registeration_length', 'Request_URL', 'Links_pointing_to_page', 
     'DNSRecord', 'Google_Index', 'URL_Length', 'HTTPS_token'
 ]
 
-# Streamlit Page Config
-st.set_page_config(page_title="Phishing Detector", page_icon="🛡️", layout="centered")
+# -----------------------------
+# Safe Prediction Function
+# -----------------------------
+def predict_phishing_safe(input_features, model, scaler, feature_names):
+    if isinstance(input_features, list) or isinstance(input_features, np.ndarray):
+        input_features = np.array(input_features).reshape(1, -1)
+    input_df = pd.DataFrame(input_features, columns=feature_names)
+    scaled_features = scaler.transform(input_df)
+    pred_label = model.predict(scaled_features)[0]
+    pred_prob = model.predict_proba(scaled_features)[0][1]
+    return pred_label, pred_prob
 
-# Custom CSS for better look
+# -----------------------------
+# Streamlit UI
+# -----------------------------
+st.set_page_config(page_title="Phishing Website Detector", page_icon="🛡️", layout="wide")
+st.title("🛡️ Phishing Website Detection System")
 st.markdown("""
-    <style>
-    .stProgress > div > div > div > div {
-        background-color: #4CAF50;
-    }
-    .result-box {
-        padding: 20px;
-        border-radius: 15px;
-        text-align: center;
-        margin-top: 20px;
-        font-size: 18px;
-        font-weight: bold;
-    }
-    .legit {
-        background-color: #e6f9f0;
-        color: #2e7d32;
-        border: 2px solid #2e7d32;
-    }
-    .phish {
-        background-color: #fdecea;
-        color: #c62828;
-        border: 2px solid #c62828;
-    }
-    </style>
-""", unsafe_allow_html=True)
+Enter website feature values below to predict whether a website is **Legitimate** or **Phishing**.
+""")
 
-# Title
-st.markdown("<h1 style='text-align:center;'>🛡️ Phishing Website Detector</h1>", unsafe_allow_html=True)
-st.write("Fill in the feature values below to check if a website is **Phishing** or **Legitimate**.")
+# Dynamic input form
+user_inputs = []
+st.subheader("Input Features")
+cols = st.columns(3)  # 3 inputs per row for a cleaner layout
+for idx, feature in enumerate(top_features_model_based):
+    val = cols[idx % 3].number_input(f"{feature}", value=0.0, step=0.01, format="%.2f")
+    user_inputs.append(val)
 
-# Input Form
-with st.form("feature_form"):
-    st.subheader("✏️ Enter Website Features")
-    
-    user_input = []
-    cols = st.columns(2)  # Two columns layout
-    for i, feature in enumerate(top_features):
-        with cols[i % 2]:
-            value = st.number_input(f"{feature}:", value=0.0, format="%.5f")
-            user_input.append(value)
+# Predict button
+if st.button("Predict"):
+    label, prob = predict_phishing_safe(user_inputs, best_model, scaler_model, top_features_model_based)
+    st.success(f"Prediction: **{'Phishing' if label==1 else 'Legitimate'}**")
+    st.info(f"Probability of being phishing: **{prob:.3f}**")
 
-    submit_button = st.form_submit_button("🔍 Predict")
+# Optional: Model info
+with st.expander("ℹ️ Model Information"):
+    st.markdown("""
+    - Model: Random Forest Classifier (Top 15 Features)
+    - Accuracy: 96.5%
+    - F1 Score: 0.961
+    - AUC: 0.994
+    """)
 
-# Prediction
-if submit_button:
-    features_array = np.array(user_input).reshape(1, -1)
-    features_scaled = scaler.transform(features_array)
-
-    prediction = model.predict(features_scaled)[0]
-    probability = model.predict_proba(features_scaled)[0][1]
-
-    st.subheader("🔎 Prediction Result")
-    if prediction == 1:
-        st.markdown(f"<div class='result-box phish'>⚠️ The website is <b>Phishing</b><br>Confidence: {probability:.2%}</div>", unsafe_allow_html=True)
-    else:
-        st.markdown(f"<div class='result-box legit'>✅ The website is <b>Legitimate</b><br>Confidence: {1 - probability:.2%}</div>", unsafe_allow_html=True)
-
-    st.write("📊 Confidence Level")
-    st.progress(float(probability))
+# Footer
+st.markdown("---")
+st.markdown("Created by **Faheem Khan** | Apache 2.0 License")
