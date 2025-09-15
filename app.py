@@ -1,67 +1,64 @@
-# phishing_app.py
 import streamlit as st
-import pandas as pd
-import numpy as np
 import joblib
+import pandas as pd
 
-# -----------------------------
-# Load model and scaler
-# -----------------------------
-best_model = joblib.load("best_phishing_model.pkl")
-scaler_model = joblib.load("best_scaler.pkl")
+# Load model & scaler
+model = joblib.load("best_phishing_model.pkl")
+scaler = joblib.load("best_scaler.pkl")
 
-# List of features used in the model (top 15 model-based features)
-top_features_model_based = [
-    'SSLfinal_State', 'URL_of_Anchor', 'web_traffic', 'Prefix_Suffix', 
-    'having_Sub_Domain', 'age_of_domain', 'Page_Rank', 'Links_in_tags', 
-    'Domain_registeration_length', 'Request_URL', 'Links_pointing_to_page', 
-    'DNSRecord', 'Google_Index', 'URL_Length', 'HTTPS_token'
+st.set_page_config(page_title="Phishing Website Detector", page_icon="🔎", layout="centered")
+
+# Header
+st.title("🔎 Phishing Website Detection")
+st.markdown("This ML app classifies websites as **Legitimate** or **Phishing** using the top 15 most important features identified by Random Forest.")
+
+# Features
+features = [
+    'SSLfinal_State', 'URL_of_Anchor', 'Prefix_Suffix', 'web_traffic',
+    'having_Sub_Domain', 'age_of_domain', 'Page_Rank', 'Links_in_tags',
+    'Domain_registeration_length', 'Request_URL', 'Links_pointing_to_page',
+    'DNSRecord', 'Google_Index', 'URL_Length', 'SFH'
 ]
 
-# -----------------------------
-# Safe Prediction Function
-# -----------------------------
-def predict_phishing_safe(input_features, model, scaler, feature_names):
-    if isinstance(input_features, list) or isinstance(input_features, np.ndarray):
-        input_features = np.array(input_features).reshape(1, -1)
-    input_df = pd.DataFrame(input_features, columns=feature_names)
-    scaled_features = scaler.transform(input_df)
-    pred_label = model.predict(scaled_features)[0]
-    pred_prob = model.predict_proba(scaled_features)[0][1]
-    return pred_label, pred_prob
+st.subheader("📝 Enter Website Features")
 
-# -----------------------------
-# Streamlit UI
-# -----------------------------
-st.set_page_config(page_title="Phishing Website Detector", page_icon="🛡️", layout="wide")
-st.title("🛡️ Phishing Website Detection System")
-st.markdown("""
-Enter website feature values below to predict whether a website is **Legitimate** or **Phishing**.
-""")
+cols = st.columns(2)
+user_input = []
 
-# Dynamic input form
-user_inputs = []
-st.subheader("Input Features")
-cols = st.columns(3)  # 3 inputs per row for a cleaner layout
-for idx, feature in enumerate(top_features_model_based):
-    val = cols[idx % 3].number_input(f"{feature}", value=0.0, step=0.01, format="%.2f")
-    user_inputs.append(val)
+for i, feat in enumerate(features):
+    with cols[i % 2]:
+        val = st.number_input(f"{feat}", value=0, step=1)
+        user_input.append(val)
 
-# Predict button
-if st.button("Predict"):
-    label, prob = predict_phishing_safe(user_inputs, best_model, scaler_model, top_features_model_based)
-    st.success(f"Prediction: **{'Phishing' if label==1 else 'Legitimate'}**")
-    st.info(f"Probability of being phishing: **{prob:.3f}**")
+# --- Prediction Function ---
+def make_prediction(input_data):
+    input_df = pd.DataFrame([input_data], columns=features)
+    data_scaled = scaler.transform(input_df)
+    pred = model.predict(data_scaled)[0]
+    prob = model.predict_proba(data_scaled)[0][1]
+    return pred, prob
 
-# Optional: Model info
-with st.expander("ℹ️ Model Information"):
-    st.markdown("""
-    - Model: Random Forest Classifier (Top 15 Features)
-    - Accuracy: 96.5%
-    - F1 Score: 0.961
-    - AUC: 0.994
-    """)
+# Prediction button
+if st.button("🚀 Predict"):
+    pred, prob = make_prediction(user_input)
+    label = "Phishing" if pred == 1 else "Legitimate"
+    emoji = "⚠️" if label == "Phishing" else "✅"
 
-# Footer
-st.markdown("---")
-st.markdown("Created by **Faheem Khan** | Apache 2.0 License")
+    st.markdown("---")
+    st.subheader("📊 Prediction Result")
+    st.success(f"{emoji} **Predicted Label:** {label}")
+    st.info(f"🔒 Phishing Probability: **{round(prob, 3)}**")
+    st.progress(int(prob * 100))
+
+# --- Demo Button ---
+if st.button("🎯 Try Demo Data"):
+    demo = [1, -1, 1, 2, 1, 0, 3, 1, 2, 1, 1, 2, 1, 45, -1]  # Example demo row
+    pred, prob = make_prediction(demo)
+    label = "Phishing" if pred == 1 else "Legitimate"
+    emoji = "⚠️" if label == "Phishing" else "✅"
+
+    st.markdown("---")
+    st.subheader("📊 Demo Prediction Result")
+    st.success(f"{emoji} **Predicted Label:** {label}")
+    st.info(f"🔒 Phishing Probability: **{round(prob, 3)}**")
+    st.progress(int(prob * 100))
